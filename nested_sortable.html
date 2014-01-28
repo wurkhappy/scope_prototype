@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+</head>
+<body style="background-color:#dce0e4;">
+    <!-- Libraries -->
+    <script src="jquery.js"></script>
+    <script src="underscore.js"></script>
+    <script src="backbone.js"></script>
+    <script src="backbone.marionette.js"></script>
+    <script src="handlebars.js"></script>
+    <script src="jquery-sortable.js"></script>
+    <tr><td colspan=4><div style="background-color: white; width:623px; text-align: center; font-size:20px;">Scope of Work</div><td></tr>
+    <tr><td colspan=4><div style="background-color: white; width:623px; text-align: center;">Drag and drop to order and group items</div><td></tr>
+    <tr><td colspan=4><div style="background-color: white; width:623px; text-align:center;">Templates:<input type="radio" name="template" value="milestone" checked><label for="milestone">Milestone</label><input type="radio" name="template" value="hourly"><label for="milestone">Hourly</label><input type="radio" name="template" value="phases"><label for="milestone">Phases</label></div><td></tr>
+    <table border="0" style="width:623px; text-align:center; background-color:#eeeeee" cellspacing="0" cellpadding="0" id="newItem">
+        <colgroup>
+    </colgroup>
+    <tr style="background-color:#007ab1; color:white;">
+        <th>Name</th>
+        <th>Cost<input type="checkbox" name="column2" checked></th>
+        <th>Hours<input type="checkbox" name="column3" checked></th>
+        <th>Date<input type="checkbox" name="column4" checked></th>
+    </tr>
+    <tr id="input_row">
+        <td width="40%"><input class="item_input" name="name" style="width:94%" placeholder="Name"></input></td>
+        <td width="20%" class="column2"><input class="item_input" name="cost" class="row_input" placeholder="Cost estimate"></input></td>
+        <td width="20%" class="column3"><input class="item_input" name="hours" class="row_input" placeholder="Hours estimate"></input></td>
+        <td width="20%" class="column4"><input class="item_input" name="date" class="row_input" placeholder="Due Date"></input><div style="position:relative;"><div class="row_button" id="add_item">Add</div></div></td>
+    </tr>
+</table>
+
+<script id="node-template" type="text/template">
+<div contenteditable=false style="display:inline-block;word-wrap:break-word;width:28%; float:left; cursor:default" class="editable item_name" data-name="name">{{name}}</div>
+<div class="table_items">
+<div class="row_cell column2 {{#if columns.col2Disabled}}disable{{/if}}"><input name="cost" class="row_input" placeholder="Cost estimate" value="{{cost}}"></input></div><div class="row_cell column3 {{#if columns.col3Disabled}}disable{{/if}}"><input name="hours" class="row_input" placeholder="Hours estimate" value="{{hours}}"></input></div><div class="row_cell column4 {{#if columns.col4Disabled}}disable{{/if}}"><input name="date" class="row_input" placeholder="Due Date" value="{{date}}"></input></div>
+</div>
+<div style="clear:both;"></div>
+<div style="position:relative;"><div class="row_button" style="color:red;">X</div></div>
+<ol></ol>
+
+</script>
+
+<script id="display-template" type="text/template">
+{{name}}
+<div class="row_item">{{date}}</div>
+<div class="row_item">{{hours}}</div>
+<div class="row_item">{{cost}}</div>
+<div style="clear:both;"></div>
+<ol><ol>
+</script>
+
+<ol id="tree" class="list" style="width:603px;">
+</ol>
+
+<script >
+var View = Backbone.View.extend({
+    el: $("#newItem"),
+    events:{
+        "click #add_item": "addNew",
+        "blur .item_input": "update",
+        "keypress input": "addOnEnter",
+        'change input[type="checkbox"]':"changeAttributes"
+    },
+    initialize: function(){
+        this.data = {};
+        this.col2Disabled = false;
+        this.col3Disabled = false;
+        this.col4Disabled = false;
+
+    },
+    addNew: function(event){
+        if (!this.data.name) {return;};
+        this.data["columns"] = {
+            col2Disabled: this.col2Disabled,
+            col3Disabled: this.col3Disabled,
+            col4Disabled: this.col4Disabled,
+        };
+        tree.add(this.data);
+        this.$('input').val('');
+    },
+    addOnEnter: function(event){
+        if (event.keyCode != 13) { 
+            return;
+        }
+        this.$('input').each(_.bind(function(index, el){
+            this.update({target:el});
+        }, this));
+        this.addNew(event);
+    },
+    update: function(event){
+        this.data[event.target.name] = event.target.value;
+    },
+    changeAttributes: function(event){
+        var name = event.target.name;
+        switch (name){
+            case "column2":
+            this.col2Disabled = !this.col2Disabled
+            $(".column2").toggleClass('disable').find('input').attr("disabled", this.col2Disabled);
+            break;
+            case "column3":
+            this.col3Disabled = !this.col3Disabled
+            $(".column3").toggleClass('disable').find('input').attr("disabled", this.col3Disabled);
+            break;
+            case "column4":
+            this.col4Disabled = !this.col4Disabled
+            $(".column4").toggleClass('disable').find('input').attr("disabled", this.col4Disabled);
+            break;
+        }
+    }
+});
+new View();
+
+TreeNode = Backbone.Model.extend({
+    initialize: function(){
+        var nodes = this.get("nodes");
+        if (nodes){
+            this.nodes = new TreeNodeCollection(nodes);
+            this.unset("nodes");
+        } else{
+            this.nodes = new TreeNodeCollection();
+        }
+    }        
+});
+
+TreeNodeCollection = Backbone.Collection.extend({
+    model: TreeNode
+});
+
+var tree = new TreeNodeCollection([
+    {name:"Milestone 1", nodes:[{name:"Task 1"}, {name:"Task 2"}]},
+    {name:"Milestone 2", nodes:[{name:"Task 3"},{name:"Task 4"}]},
+    ]);
+
+// The recursive tree view
+var TreeView = Backbone.Marionette.CompositeView.extend({
+    template: Handlebars.compile($("#node-template").text()),
+
+    tagName: "li",
+    className:"list",
+    itemViewContainer:'ol',
+    events: {
+        "dblclick .editable": "editInfo",
+        "blur .editable": "updateInfo",
+        "click .row_button":"removeItem"
+    },
+    initialize: function(){
+        this.collection = this.model.nodes;
+    },
+    onRender: function(){
+        setTimeout(_.bind(function(){
+            this.$('.table_items').height(this.$('.item_name').height());
+        }, this), 0);
+    },
+    attributes:function(){
+        return {'data-id':this.model.cid};
+    },
+    editInfo: function(event){
+        $(event.target).attr("contenteditable", true);
+        event.target.focus();
+    },
+    updateInfo: function(event){
+        $(event.target).attr("contenteditable", false);
+        this.model.set($(event.target).data("name"), $(event.target).text());
+    },
+    removeItem: function(event){
+        this.model.collection.remove(this.model);
+    }
+});
+
+// The tree's root: a simple collection view that renders 
+// a recursive tree structure for each item in the collection
+var TreeRoot = Backbone.Marionette.CollectionView.extend({
+    itemView: TreeView,
+});
+var treeView = new TreeRoot({
+    el:$('#tree'),
+    collection: tree,
+}); 
+
+treeView.render();
+$('#tree').sortable({
+    placeholder:'<li class="placeholder"></li>',
+    onMousedown: function($item, event, _super){
+        return true;
+    }
+});
+
+$('input[name="template"]').on("change", function(event){
+    var val = event.target.value;
+    switch (val){
+        case "milestone":
+        tree.reset([
+            {name:"Milestone 1", cost: "$1000", nodes:[{name:"Task 1"}, {name:"Task 2"}]},
+            {name:"Milestone 2", cost: "$1250", nodes:[{name:"Task 3"},{name:"Task 4"}]},
+            ]);
+        break;
+        case "hourly":
+        tree.reset([
+            {name:"Task 1", hours:"10", cost:"$1000"},
+            {name:"Task 2", hours:"12", cost:"$1200"},
+            ]);
+        break;
+        case "phases":
+        tree.reset([
+            {name:"Phase 1", cost:"$1000", nodes:[{name:"Task 1", hours:"12"},
+            {name:"Task 2", hours:"10"}]},
+            ]);
+        break;
+    }
+})
+</script>
+<style>
+input{
+    text-align: center;
+}
+.row_cell{
+    width: 124.5px;
+    height: 100%;
+    margin: 0px;
+    padding: 0px;
+    display: inline-block;
+}
+.row_cell > input{
+    width:95%;
+}
+.row_button{
+    position:absolute;
+    right:-35px;
+    top:-22px;
+}
+.table_items{
+    width: 375px;
+    float: right;
+    display: inline-block;
+}
+.header_column{
+    display: inline-block;
+    width: 114px;
+    text-align: center;
+
+}
+.row_input{
+}
+.row_cell.disable{
+    background-color: #dce0e4;
+}
+.disable > input{
+    background-color: #dce0e4;
+}
+.row_item {
+    background-color: white;
+    display: inline-block;
+    float: right;
+    width: 116px;
+    text-align: center;
+}
+h3 {
+    background-color: blue;
+}
+.placeholder{
+    border: 1px solid black;
+    height: 20px;
+}
+li input{
+    padding-right: 3px;
+    padding-left: 2px;
+    border: none;
+    color: #0088cc;
+    text-align: center;
+    background-color: inherit;
+}
+
+/* line 1, jquery-sortable.css.sass */
+body.dragging, body.dragging * {
+  cursor: move !important; }
+
+  /* line 4, jquery-sortable.css.sass */
+  .dragged {
+      position: absolute;
+      top: 0;
+      opacity: 0.5;
+      z-index: 2000; }
+
+      /* line 10, jquery-sortable.css.sass */
+      ol {
+          margin: 0 0 0px 0;
+          background: #eeeeee;
+          padding-left: 21px;
+          -webkit-touch-callout: none;
+          -webkit-user-select: none;
+          -khtml-user-select: none;
+          -moz-user-select: moz-none;
+          -ms-user-select: none;
+          user-select: none; }
+          /* line 12, jquery-sortable.css.sass */
+          ol li {
+            display: block;
+            color: #0088cc;
+            background: #eeeeee;}
+            /* line 19, jquery-sortable.css.sass */
+            ol li.placeholder {
+                position: relative;
+                margin: 0;
+                padding: 0;
+                border: 1px solid red; }
+                /* line 24, jquery-sortable.css.sass */
+/*    ol li.placeholder:before {
+      position: absolute;
+      content: "";
+      width: 0;
+      height: 0;
+      margin-top: -5px;
+      left: -5px;
+      top: -4px;
+      border: 5px solid transparent;
+      border-left-color: red;
+      border-right: none; }*/
+
+      /* line 32, application.css.sass */
+      ol {
+          list-style-type: none;
+      }
+      /* line 34, application.css.sass */
+      ol i.icon-move {
+        cursor: pointer; }
+        /* line 36, application.css.sass */
+        ol li.highlight {
+            background: #333333;
+            color: #999999; }
+            /* line 39, application.css.sass */
+            ol li.highlight i.icon-move {
+              background-image: url("../img/glyphicons-halflings-white.png"); }
+
+              /* line 42, application.css.sass */
+              ol.nested_with_switch, ol.nested_with_switch ol {
+                  border: 1px solid #eeeeee; }
+                  /* line 44, application.css.sass */
+                  ol.nested_with_switch.active, ol.nested_with_switch ol.active {
+                    border: 1px solid #333333; }
+
+                    /* line 48, application.css.sass */
+                    ol.nested_with_switch li, ol.simple_with_animation li, ol.default li {
+                      cursor: pointer; }
+
+                      /* line 51, application.css.sass */
+                      .switch-container {
+                          display: block;
+                          margin-left: auto;
+                          margin-right: auto;
+                          width: 80px; }
+
+                          /* line 57, application.css.sass */
+                          .navbar-sort-container {
+                              height: 200px; }
+
+                              /* line 61, application.css.sass */
+                              ol.nav li, ol.nav li a {
+                                  cursor: pointer; }
+                                  /* line 63, application.css.sass */
+                                  ol.nav .divider {
+                                      cursor: default; }
+                                      /* line 66, application.css.sass */
+                                      ol.nav li.dragged {
+                                          background-color: #2c2c2c; }
+                                          /* line 68, application.css.sass */
+                                          ol.nav li.placeholder {
+                                              position: relative; }
+                                              /* line 70, application.css.sass */
+                                              ol.nav li.placeholder:before {
+                                                content: "";
+                                                position: absolute;
+                                                width: 0;
+                                                height: 0;
+                                                border: 5px solid transparent;
+                                                border-top-color: red;
+                                                top: -6px;
+                                                margin-left: -5px;
+                                                border-bottom: none; }
+                                                </style>
+                                            </body>
+                                            </html>
