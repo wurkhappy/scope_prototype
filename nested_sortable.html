@@ -27,7 +27,7 @@
         <td width="40%"><input class="item_input" name="name" style="width:94%" placeholder="Name"></input></td>
         <td width="20%" class="column2"><input class="item_input" name="cost" class="row_input" placeholder="Cost estimate"></input></td>
         <td width="20%" class="column3"><input class="item_input" name="hours" class="row_input" placeholder="Hours estimate"></input></td>
-        <td width="20%" class="column4"><input class="item_input" name="date" class="row_input" placeholder="Due Date"></input><div style="position:relative;"><div class="row_button" id="add_item">Add</div></div></td>
+        <td width="20%" class="column4"><input class="item_input" name="date" class="row_input" placeholder="Due Date"></input><div style="position:relative;"><div class="row_button" id="add_item" style="color:green;">+</div></div></td>
     </tr>
 </table>
 
@@ -79,6 +79,7 @@ var View = Backbone.View.extend({
         };
         tree.add(this.data);
         this.$('input').val('');
+        this.data = {};
     },
     addOnEnter: function(event){
         if (event.keyCode != 13) { 
